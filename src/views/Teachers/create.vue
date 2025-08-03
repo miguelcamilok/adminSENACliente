@@ -1,11 +1,11 @@
 <template>
   <div class="container mt-4">
-    <h4 class="mb-4">Crear un nuevo profesor</h4>
+    <h4 class="mb-4 fw-bold text-primary-emphasis">Crear un nuevo profesor</h4>
 
-    <form @submit.prevent="submitForm">
+    <form @submit.prevent="handleConfirm">
       <div class="mb-3">
-        <input v-model="form.name" type="text" class="form-control" placeholder="Ingrese el nombre" required>
-        <input v-model="form.email" type="email" class="form-control mt-3" placeholder="Ingrese el email" required>
+        <input v-model="form.name" type="text" class="form-control" placeholder="Ingrese el nombre" required />
+        <input v-model="form.email" type="email" class="form-control mt-3" placeholder="Ingrese el email" required />
       </div>
 
       <div class="mb-3">
@@ -26,9 +26,11 @@
       <router-link to="/teachers" class="btn btn-secondary ms-2">Cancelar</router-link>
     </form>
 
-    <div v-if="error" class="alert alert-danger mt-3">
-      {{ error }}
-    </div>
+    <div v-if="error" class="alert alert-danger mt-3">{{ error }}</div>
+
+    <!-- Modales reutilizables -->
+    <ModalConfirm ref="confirmModal" />
+    <ModalStatus ref="statusModal" />
   </div>
 </template>
 
@@ -37,8 +39,17 @@ import { ref, onMounted } from 'vue'
 import axios from 'axios'
 import { useRouter } from 'vue-router'
 
+// Componentes reutilizables
+import ModalConfirm from '../../components/ModalConfirm.vue'
+import ModalStatus from '../../components/ModalStatus.vue'
+
 const router = useRouter()
 
+// Refs para los modales
+const confirmModal = ref()
+const statusModal = ref()
+
+// Formulario
 const form = ref({
   name: '',
   email: '',
@@ -46,28 +57,46 @@ const form = ref({
   training_center_id: ''
 })
 
+// Datos select
 const areas = ref([])
 const trainingCenters = ref([])
 const error = ref(null)
 
 const fetchSelects = async () => {
   try {
-    const areasResponse = await axios.get('http://api.adminsena/api/areas')
-    const centersResponse = await axios.get('http://api.adminsena/api/trainingcenters')
-
-    areas.value = areasResponse.data
-    trainingCenters.value = centersResponse.data
+    const [a, c] = await Promise.all([
+      axios.get('http://api.adminsena/api/areas'),
+      axios.get('http://api.adminsena/api/trainingcenters')
+    ])
+    areas.value = a.data
+    trainingCenters.value = c.data
   } catch (err) {
     error.value = 'Error cargando datos'
   }
 }
 
+const handleConfirm = () => {
+  confirmModal.value.open({
+    title: '¿Guardar profesor?',
+    message: 'Confirma que deseas guardar este registro.',
+    onConfirm: submitForm
+  })
+}
+
 const submitForm = async () => {
+  error.value = null
+
+  statusModal.value.show({
+    loadingText: 'Guardando profesor...',
+    successText: '¡Profesor creado exitosamente!',
+    onFinish: () => router.push('/teachers')
+  })
+
   try {
     await axios.post('http://api.adminsena/api/teachers', form.value)
-    router.push('/teachers')
   } catch (err) {
-    if (err.response && err.response.data && err.response.data.errors) {
+    statusModal.value.visible = false
+    if (err.response?.data?.errors) {
       error.value = Object.values(err.response.data.errors).flat().join(', ')
     } else {
       error.value = 'No se pudo guardar el profesor.'

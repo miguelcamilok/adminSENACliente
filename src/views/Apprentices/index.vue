@@ -6,7 +6,7 @@
     </div>
   </div>
 
-  <div class="container"  v-else>
+  <div class="container" v-else>
     <div class="d-flex justify-content-between align-items-center mb-3">
       <h3 class="mb-0 fw-bold text-primary-emphasis text-dark">Listado de Aprendices</h3>
       <router-link to="/apprentices/create" class="btn btn-dark">+</router-link>
@@ -48,7 +48,7 @@
               </router-link>
             </td>
             <td>
-              <button @click="deleteApprentice(apprentice.id)" class="btn btn-danger btn-sm rounded-circle"
+              <button @click="handleDeleteClick(apprentice.id)" class="btn btn-danger btn-sm rounded-circle"
                 title="Eliminar">
                 <i class="bi bi-trash3"></i>
               </button>
@@ -57,15 +57,25 @@
         </tbody>
       </table>
     </div>
+    <!-- Reutilizables -->
+    <ModalConfirm ref="confirmModal" />
+    <ModalStatus ref="statusModal" />
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
 import axios from 'axios'
+import ModalConfirm from '../../components/ModalConfirm.vue'
+import ModalStatus from '../../components/ModalStatus.vue'
 
 const apprentices = ref([])
 const loading = ref(true)
+
+const confirmModal = ref()
+const statusModal = ref()
+
+const apprenticeToDelete = ref(null)
 
 const fetchApprentices = async () => {
   try {
@@ -81,17 +91,34 @@ const fetchApprentices = async () => {
   }
 }
 
-const deleteApprentice = async (id) => {
-  if (!confirm('¿Seguro que quieres eliminar este aprendiz?')) return
+const handleDeleteClick = (id) => {
+  apprenticeToDelete.value = id
+  confirmModal.value.open({
+    title: '¿Eliminar aprendiz?',
+    message: '¿Estás seguro de eliminar este aprendiz?',
+    onConfirm: deleteApprentice
+  })
+}
+
+const deleteApprentice = async () => {
+  statusModal.value.show({
+    loadingText: 'Eliminando aprendiz...',
+    successText: '¡Aprendiz eliminado correctamente!',
+    onFinish: () => {
+      apprentices.value = apprentices.value.filter(t => t.id !== apprenticeToDelete.value)
+      apprenticeToDelete.value = null
+    }
+  })
 
   try {
-    await axios.delete(`http://api.adminsena/api/apprentices/${id}`)
-    apprentices.value = apprentices.value.filter(a => a.id !== id)
+    await axios.delete(`http://api.adminsena/api/apprentices/${apprenticeToDelete.value}`)
   } catch (error) {
-    alert('Error eliminando el aprendiz.')
-    console.error(error)
+    console.error('Error al eliminar:', error)
+    statusModal.value.visible = false
+    alert('Error al eliminar el aprendiz.')
   }
 }
+
 
 onMounted(fetchApprentices)
 </script>

@@ -1,6 +1,6 @@
 <template>
   <div class="container py-5">
-    <!-- Loader bonito centrado -->
+    <!-- Loader al cargar profesores -->
     <div v-if="loading" class="d-flex justify-content-center align-items-center" style="min-height: 300px;">
       <div class="text-center">
         <div class="spinner-border text-primary" style="width: 4rem; height: 4rem;" role="status"></div>
@@ -8,26 +8,24 @@
       </div>
     </div>
 
-    <!-- Encabezado -->
+    <!-- Contenido -->
     <div v-else>
       <div class="d-flex justify-content-between align-items-center mb-3">
         <h3 class="mb-0 fw-bold text-primary-emphasis text-dark">Listado de Profesores</h3>
         <router-link to="/teachers/create" class="btn btn-dark">+</router-link>
       </div>
 
-      <!-- Sin datos -->
       <div v-if="teachers.length === 0" class="alert alert-info text-center">
         <i class="bi bi-info-circle"></i> No hay profesores registrados.
       </div>
 
-      <!-- Tabla -->
       <div v-else class="table-responsive rounded-4 shadow-sm border border-2 border-light-subtle">
         <table class="table align-middle text-center mb-0">
           <thead class="table-dark">
             <tr>
               <th>ID</th>
-              <th>Name</th>
-              <th>Gmail</th>
+              <th>Nombre</th>
+              <th>Correo</th>
               <th>Detalles</th>
               <th>Editar</th>
               <th>Eliminar</th>
@@ -49,7 +47,7 @@
                 </router-link>
               </td>
               <td>
-                <button @click="deleteTeacher(teacher.id)" class="btn btn-danger btn-sm rounded-circle" title="Eliminar">
+                <button @click="handleDeleteClick(teacher.id)" class="btn btn-danger btn-sm rounded-circle" title="Eliminar">
                   <i class="bi bi-trash3"></i>
                 </button>
               </td>
@@ -58,15 +56,26 @@
         </table>
       </div>
     </div>
+
+    <!-- Reutilizables -->
+    <ModalConfirm ref="confirmModal" />
+    <ModalStatus ref="statusModal" />
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
 import axios from 'axios'
+import ModalConfirm from '../../components/ModalConfirm.vue'
+import ModalStatus from '../../components/ModalStatus.vue'
 
 const teachers = ref([])
 const loading = ref(true)
+
+const confirmModal = ref()
+const statusModal = ref()
+
+const teacherToDelete = ref(null)
 
 const fetchTeachers = async () => {
   try {
@@ -75,22 +84,35 @@ const fetchTeachers = async () => {
   } catch (error) {
     console.error('Error al cargar los profesores:', error)
   } finally {
-    // Forzar duración del loader por 10 segundos
-    setTimeout(() => {
-      loading.value = false
-    }, 500)
+    setTimeout(() => (loading.value = false), 500)
   }
 }
 
-const deleteTeacher = async (id) => {
-  if (!confirm('¿Seguro que quieres eliminar este profesor?')) return
+const handleDeleteClick = (id) => {
+  teacherToDelete.value = id
+  confirmModal.value.open({
+    title: '¿Eliminar profesor?',
+    message: '¿Estás seguro de eliminar este profesor?',
+    onConfirm: deleteTeacher
+  })
+}
+
+const deleteTeacher = async () => {
+  statusModal.value.show({
+    loadingText: 'Eliminando profesor...',
+    successText: '¡Profesor eliminado correctamente!',
+    onFinish: () => {
+      teachers.value = teachers.value.filter(t => t.id !== teacherToDelete.value)
+      teacherToDelete.value = null
+    }
+  })
 
   try {
-    await axios.delete(`http://api.adminsena/api/teachers/${id}`)
-    teachers.value = teachers.value.filter(teacher => teacher.id !== id)
+    await axios.delete(`http://api.adminsena/api/teachers/${teacherToDelete.value}`)
   } catch (error) {
-    alert('Error eliminando el profesor.')
-    console.error(error)
+    console.error('Error al eliminar:', error)
+    statusModal.value.visible = false
+    alert('Error al eliminar el profesor.')
   }
 }
 
